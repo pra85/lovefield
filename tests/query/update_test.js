@@ -106,3 +106,36 @@ function testContext_Clone() {
   assertTrue(goog.getUid(context) != goog.getUid(context2));
   assertTrue(goog.getUid(context.where) != goog.getUid(context2.where));
 }
+
+
+function testNoWaitOnBinding() {
+  var j = db.getSchema().getJob();
+  var rows = [
+    j.createRow({'id': '1', 'title': '1', 'minSalary': 1, 'maxSalary': 1}),
+    j.createRow({'id': '2', 'title': '1', 'minSalary': 1, 'maxSalary': 2}),
+    j.createRow({'id': '3', 'title': '1', 'minSalary': 1, 'maxSalary': 3})
+  ];
+
+  asyncTestCase.waitForAsync();
+  db.insert().into(j).values(rows).exec().then(function() {
+    var values = [[5, 6, '1'], [7, 8, '2'], [9, 10, '3']];
+    var q = db.update(j)
+        .set(j.minSalary, lf.bind(0))
+        .set(j.maxSalary, lf.bind(1))
+        .where(j.id.eq(lf.bind(2)));
+    var promises = values.map(function(vals) {
+      return q.bind(vals).exec();
+    });
+    return goog.Promise.all(promises);
+  }).then(function() {
+    return db.select().from(j).orderBy(j.id).exec();
+  }).then(function(results) {
+    assertEquals(5, results[0]['minSalary']);
+    assertEquals(6, results[0]['maxSalary']);
+    assertEquals(7, results[1]['minSalary']);
+    assertEquals(8, results[1]['maxSalary']);
+    assertEquals(9, results[2]['minSalary']);
+    assertEquals(10, results[2]['maxSalary']);
+    asyncTestCase.continueTesting();
+  });
+}
